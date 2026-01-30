@@ -148,58 +148,40 @@ class WineCellar {
 
         const winesRef = this.db.ref(`users/${this.userId}/wines`);
 
+        // First time connecting - check if we need to migrate local data
+        this.isFirstSync = true;
+
         winesRef.on('value', (snapshot) => {
             if (this.syncInProgress) return;
 
             const data = snapshot.val();
-            if (data) {
-                // Convert Firebase object to array
-                const firebaseWines = Object.values(data);
+            const firebaseWines = data ? Object.values(data) : [];
 
-                // Merge with local wines (Firebase takes priority for conflicts)
-                this.mergeWines(firebaseWines);
-
-                this.renderWineList();
-                this.updateStats();
-                this.updateSearchVisibility();
-
-                console.log('Wines synced from cloud:', this.wines.length);
-            } else {
-                // No data in Firebase yet - push local wines if any
-                if (this.wines.length > 0) {
-                    this.saveWinesToFirebase();
-                }
+            if (this.isFirstSync && firebaseWines.length === 0 && this.wines.length > 0) {
+                // First time user with local data but empty Firebase - migrate local wines
+                console.log('Migrating local wines to cloud...');
+                this.saveWinesToFirebase();
+                this.isFirstSync = false;
+                return;
             }
+
+            this.isFirstSync = false;
+
+            // Firebase is the source of truth - replace local wines entirely
+            this.wines = firebaseWines;
+
+            // Sort by addedAt date (newest first)
+            this.wines.sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt));
+
+            // Save to localStorage as backup for offline use
+            this.saveToLocalStorage();
+
+            this.renderWineList();
+            this.updateStats();
+            this.updateSearchVisibility();
+
+            console.log('Wines synced from cloud:', this.wines.length);
         });
-    }
-
-    mergeWines(firebaseWines) {
-        // Create a map of existing wines by ID
-        const localWinesMap = new Map(this.wines.map(w => [w.id, w]));
-        const firebaseWinesMap = new Map(firebaseWines.map(w => [w.id, w]));
-
-        // Merge: Firebase wins for existing, add new from both
-        const merged = new Map();
-
-        // Add all Firebase wines
-        firebaseWines.forEach(w => merged.set(w.id, w));
-
-        // Add local wines that aren't in Firebase (new local additions)
-        this.wines.forEach(w => {
-            if (!firebaseWinesMap.has(w.id)) {
-                merged.set(w.id, w);
-                // Also push this to Firebase
-                this.pushWineToFirebase(w);
-            }
-        });
-
-        this.wines = Array.from(merged.values());
-
-        // Sort by addedAt date (newest first)
-        this.wines.sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt));
-
-        // Save to localStorage as backup
-        this.saveToLocalStorage();
     }
 
     async pushWineToFirebase(wine) {
