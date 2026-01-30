@@ -463,6 +463,8 @@ class WineCellar {
     async searchGoogleImage(wineData) {
         const searchQuery = `${wineData.producer} ${wineData.name} ${wineData.year || ''} wine bottle`;
 
+        console.log('🔍 Google Image Search Query:', searchQuery);
+
         const url = `https://www.googleapis.com/customsearch/v1?` +
             `key=${this.googleApiKey}` +
             `&cx=${this.googleSearchEngineId}` +
@@ -472,32 +474,54 @@ class WineCellar {
             `&imgType=photo` +
             `&safe=active`;
 
+        console.log('🌐 API URL:', url.replace(this.googleApiKey, 'API_KEY_HIDDEN'));
+
         const response = await fetch(url);
 
+        console.log('📡 Response status:', response.status);
+
         if (!response.ok) {
-            throw new Error(`Google API error: ${response.status}`);
+            const errorText = await response.text();
+            console.error('❌ Google API Error:', errorText);
+            throw new Error(`Google API error: ${response.status} - ${errorText}`);
         }
 
         const data = await response.json();
 
+        console.log('📦 Google API Response:', data);
+
+        if (data.error) {
+            console.error('❌ Google API Error in response:', data.error);
+            throw new Error(`Google API error: ${data.error.message}`);
+        }
+
         if (!data.items || data.items.length === 0) {
+            console.log('⚠️ No images found for query');
             return null;
         }
 
+        console.log(`✅ Found ${data.items.length} images:`);
+        data.items.forEach((item, i) => {
+            console.log(`  ${i + 1}. ${item.link}`);
+        });
+
         // Probeer de eerste 5 afbeeldingen totdat er een werkt
-        for (const item of data.items) {
+        for (let i = 0; i < data.items.length; i++) {
+            const item = data.items[i];
             try {
-                const imageUrl = item.link;
-                const loaded = await this.loadExternalImage(imageUrl);
+                console.log(`🖼️ Trying to load image ${i + 1}: ${item.link}`);
+                const loaded = await this.loadExternalImage(item.link);
                 if (loaded) {
+                    console.log(`✅ Successfully loaded image ${i + 1}`);
                     return loaded;
                 }
             } catch (e) {
-                console.log('Image failed to load, trying next:', e);
+                console.log(`❌ Image ${i + 1} failed:`, e.message);
                 continue;
             }
         }
 
+        console.log('⚠️ All images failed to load (CORS issues)');
         return null;
     }
 
