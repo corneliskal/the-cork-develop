@@ -26,12 +26,13 @@ const CONFIG = {
     // 4. Ga naar Realtime Database > Create Database > Start in test mode
     // 5. Ga naar Authentication > Sign-in method > Anonymous > Enable
     FIREBASE: {
-        apiKey: "YOUR-FIREBASE-API-KEY",
-        authDomain: "YOUR-PROJECT-ID.firebaseapp.com",
-        databaseURL: "https://YOUR-PROJECT-ID-default-rtdb.europe-west1.firebasedatabase.app",
-        projectId: "YOUR-PROJECT-ID",
-        storageBucket: "YOUR-PROJECT-ID.appspot.com",
-        messagingSenderId: "YOUR-SENDER-ID",
-        appId: "YOUR-APP-ID"
+        apiKey: "AIzaSyCf49GNUSVnl5Va3waIGFU2WcZsqo8e6Z0",
+        authDomain: "the-cork-claude.firebaseapp.com",
+        databaseURL: "https://the-cork-claude-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "the-cork-claude",
+        storageBucket: "the-cork-claude.firebasestorage.app",
+        messagingSenderId: "315353039539",
+        appId: "1:315353039539:web:85f20655096ae78062e6c6",
+        measurementId: "G-T2WNRF19ZT"
     }
 };
