@@ -148,24 +148,13 @@ class WineCellar {
 
         const winesRef = this.db.ref(`users/${this.userId}/wines`);
 
-        // First time connecting - check if we need to migrate local data
-        this.isFirstSync = true;
-
         winesRef.on('value', (snapshot) => {
             if (this.syncInProgress) return;
 
             const data = snapshot.val();
             const firebaseWines = data ? Object.values(data) : [];
 
-            if (this.isFirstSync && firebaseWines.length === 0 && this.wines.length > 0) {
-                // First time user with local data but empty Firebase - migrate local wines
-                console.log('Migrating local wines to cloud...');
-                this.saveWinesToFirebase();
-                this.isFirstSync = false;
-                return;
-            }
-
-            this.isFirstSync = false;
+            console.log('Firebase data received:', firebaseWines.length, 'wines');
 
             // Firebase is the source of truth - replace local wines entirely
             this.wines = firebaseWines;
@@ -195,10 +184,16 @@ class WineCellar {
     }
 
     async deleteWineFromFirebase(wineId) {
-        if (!this.firebaseEnabled || !this.db || !this.userId) return;
+        if (!this.firebaseEnabled || !this.db || !this.userId) {
+            console.log('Cannot delete from Firebase - not enabled or no user');
+            return;
+        }
 
         try {
+            console.log('Deleting wine from Firebase:', wineId);
+            console.log('Path:', `users/${this.userId}/wines/${wineId}`);
             await this.db.ref(`users/${this.userId}/wines/${wineId}`).remove();
+            console.log('Wine deleted from Firebase successfully');
         } catch (error) {
             console.error('Error deleting wine from Firebase:', error);
         }
