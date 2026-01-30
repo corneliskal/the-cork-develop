@@ -26,6 +26,9 @@
                 <div class="header-stats">
                     <span id="totalBottles">0</span> bottles
                 </div>
+                <div id="syncStatus" class="sync-status">
+                    <span class="status-local">💾 Lokaal</span>
+                </div>
             </div>
         </header>
 
@@ -129,6 +132,25 @@
                         </div>
 
                         <button id="clearGoogleKeys" class="clear-key-btn">Google Keys Verwijderen</button>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>Cloud Sync (Firebase)</h3>
+                        <p class="settings-description">
+                            Synchroniseer je wijnkelder tussen al je apparaten.<br><br>
+                            <strong>Huidige status:</strong>
+                        </p>
+                        <div class="api-key-status" id="firebaseSyncStatus">
+                            <span class="status-disconnected">Niet geconfigureerd</span>
+                        </div>
+                        <p class="settings-description" style="font-size: 12px; margin-top: 12px;">
+                            Om cloud sync in te schakelen:<br>
+                            1. Maak een <a href="https://console.firebase.google.com/" target="_blank">Firebase project</a><br>
+                            2. Maak een Web app aan en kopieer de config<br>
+                            3. Schakel Realtime Database in (test mode)<br>
+                            4. Schakel Anonymous auth in<br>
+                            5. Voeg de config toe aan config.js
+                        </p>
                     </div>
 
                     <div class="settings-section">
@@ -431,6 +453,11 @@
             <span id="toastMessage"></span>
         </div>
     </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
     <script src="config.js"></script>
     <script src="app.js"></script>

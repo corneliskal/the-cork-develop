@@ -157,6 +157,35 @@ body {
     border-radius: 100px;
 }
 
+/* Sync Status Indicator */
+.sync-status {
+    font-size: var(--font-caption2);
+    padding: 4px 8px;
+    border-radius: 100px;
+    margin-left: var(--space-8);
+}
+
+.sync-status .status-local {
+    color: var(--label-tertiary);
+}
+
+.sync-status .status-connecting,
+.sync-status .status-syncing {
+    color: var(--system-orange);
+}
+
+.sync-status .status-synced {
+    color: var(--system-green);
+}
+
+.sync-status .status-error {
+    color: var(--system-red);
+}
+
+.sync-status .status-disconnected {
+    color: var(--label-tertiary);
+}
+
 /* Settings Button - 44pt touch target */
 .settings-btn {
     width: 44px;

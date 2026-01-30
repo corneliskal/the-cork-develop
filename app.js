@@ -1,6 +1,7 @@
 // ============================
 // The Cork - Wine Cellar App
 // With ChatGPT Vision API Integration
+// And Firebase Cloud Sync
 // ============================
 
 class WineCellar {
@@ -15,17 +16,204 @@ class WineCellar {
         this.googleSearchEngineId = null;
         this.searchQuery = '';
 
+        // Firebase
+        this.db = null;
+        this.userId = null;
+        this.firebaseEnabled = false;
+        this.syncInProgress = false;
+
         this.init();
     }
 
-    init() {
-        this.loadWines();
+    async init() {
+        this.loadWines(); // Load from localStorage first (offline support)
         this.loadApiKey();
         this.loadGoogleKeys();
         this.bindEvents();
         this.renderWineList();
         this.updateStats();
         this.updateSearchVisibility();
+
+        // Initialize Firebase if configured
+        await this.initFirebase();
+    }
+
+    // ============================
+    // Firebase Integration
+    // ============================
+
+    async initFirebase() {
+        // Check if Firebase config is available and valid
+        if (typeof CONFIG === 'undefined' || !CONFIG.FIREBASE ||
+            !CONFIG.FIREBASE.apiKey || CONFIG.FIREBASE.apiKey.includes('YOUR')) {
+            console.log('Firebase not configured - using local storage only');
+            this.updateSyncStatus('local');
+            return;
+        }
+
+        try {
+            // Initialize Firebase
+            if (!firebase.apps.length) {
+                firebase.initializeApp(CONFIG.FIREBASE);
+            }
+
+            this.db = firebase.database();
+
+            // Sign in anonymously
+            this.updateSyncStatus('connecting');
+            const userCredential = await firebase.auth().signInAnonymously();
+            this.userId = userCredential.user.uid;
+
+            console.log('Firebase connected, user ID:', this.userId);
+            this.firebaseEnabled = true;
+
+            // Set up real-time listener
+            this.setupFirebaseListener();
+
+            this.updateSyncStatus('synced');
+            this.showToast('Cloud sync enabled!');
+
+        } catch (error) {
+            console.error('Firebase initialization error:', error);
+            this.updateSyncStatus('error');
+            this.showToast('Cloud sync unavailable - using local storage');
+        }
+    }
+
+    setupFirebaseListener() {
+        if (!this.db || !this.userId) return;
+
+        const winesRef = this.db.ref(`users/${this.userId}/wines`);
+
+        winesRef.on('value', (snapshot) => {
+            if (this.syncInProgress) return;
+
+            const data = snapshot.val();
+            if (data) {
+                // Convert Firebase object to array
+                const firebaseWines = Object.values(data);
+
+                // Merge with local wines (Firebase takes priority for conflicts)
+                this.mergeWines(firebaseWines);
+
+                this.renderWineList();
+                this.updateStats();
+                this.updateSearchVisibility();
+
+                console.log('Wines synced from cloud:', this.wines.length);
+            }
+        });
+
+        // Listen for auth state changes
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                this.userId = user.uid;
+                this.updateSyncStatus('synced');
+            } else {
+                this.firebaseEnabled = false;
+                this.updateSyncStatus('disconnected');
+            }
+        });
+    }
+
+    mergeWines(firebaseWines) {
+        // Create a map of existing wines by ID
+        const localWinesMap = new Map(this.wines.map(w => [w.id, w]));
+        const firebaseWinesMap = new Map(firebaseWines.map(w => [w.id, w]));
+
+        // Merge: Firebase wins for existing, add new from both
+        const merged = new Map();
+
+        // Add all Firebase wines
+        firebaseWines.forEach(w => merged.set(w.id, w));
+
+        // Add local wines that aren't in Firebase (new local additions)
+        this.wines.forEach(w => {
+            if (!firebaseWinesMap.has(w.id)) {
+                merged.set(w.id, w);
+                // Also push this to Firebase
+                this.pushWineToFirebase(w);
+            }
+        });
+
+        this.wines = Array.from(merged.values());
+
+        // Sort by addedAt date (newest first)
+        this.wines.sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt));
+
+        // Save to localStorage as backup
+        this.saveToLocalStorage();
+    }
+
+    async pushWineToFirebase(wine) {
+        if (!this.firebaseEnabled || !this.db || !this.userId) return;
+
+        try {
+            await this.db.ref(`users/${this.userId}/wines/${wine.id}`).set(wine);
+        } catch (error) {
+            console.error('Error pushing wine to Firebase:', error);
+        }
+    }
+
+    async deleteWineFromFirebase(wineId) {
+        if (!this.firebaseEnabled || !this.db || !this.userId) return;
+
+        try {
+            await this.db.ref(`users/${this.userId}/wines/${wineId}`).remove();
+        } catch (error) {
+            console.error('Error deleting wine from Firebase:', error);
+        }
+    }
+
+    async saveWinesToFirebase() {
+        if (!this.firebaseEnabled || !this.db || !this.userId) return;
+
+        this.syncInProgress = true;
+        this.updateSyncStatus('syncing');
+
+        try {
+            // Convert array to object with wine IDs as keys
+            const winesObject = {};
+            this.wines.forEach(wine => {
+                winesObject[wine.id] = wine;
+            });
+
+            await this.db.ref(`users/${this.userId}/wines`).set(winesObject);
+
+            this.updateSyncStatus('synced');
+            console.log('Wines saved to cloud');
+        } catch (error) {
+            console.error('Error saving to Firebase:', error);
+            this.updateSyncStatus('error');
+            this.showToast('Sync error - saved locally');
+        } finally {
+            this.syncInProgress = false;
+        }
+    }
+
+    updateSyncStatus(status) {
+        const statusEl = document.getElementById('syncStatus');
+        const settingsStatusEl = document.getElementById('firebaseSyncStatus');
+
+        const statusMap = {
+            'local': { icon: '💾', text: 'Lokale opslag', class: 'status-local', settingsText: 'Niet geconfigureerd - Data wordt alleen lokaal opgeslagen' },
+            'connecting': { icon: '🔄', text: 'Verbinden...', class: 'status-connecting', settingsText: 'Verbinden met cloud...' },
+            'synced': { icon: '☁️', text: 'Cloud sync', class: 'status-synced', settingsText: '✓ Verbonden - Je wijnen worden automatisch gesynchroniseerd' },
+            'syncing': { icon: '🔄', text: 'Syncing...', class: 'status-syncing', settingsText: 'Synchroniseren...' },
+            'error': { icon: '⚠️', text: 'Sync error', class: 'status-error', settingsText: '⚠️ Synchronisatie fout - Probeer later opnieuw' },
+            'disconnected': { icon: '📴', text: 'Offline', class: 'status-disconnected', settingsText: 'Offline - Data wordt lokaal opgeslagen' }
+        };
+
+        const s = statusMap[status] || statusMap['local'];
+
+        if (statusEl) {
+            statusEl.innerHTML = `<span class="${s.class}">${s.icon} ${s.text}</span>`;
+        }
+
+        if (settingsStatusEl) {
+            const statusClass = status === 'synced' ? 'status-connected' : 'status-disconnected';
+            settingsStatusEl.innerHTML = `<span class="${statusClass}">${s.settingsText}</span>`;
+        }
     }
 
     // ============================
@@ -39,21 +227,30 @@ class WineCellar {
         }
     }
 
-    saveWines() {
+    saveToLocalStorage() {
         try {
             localStorage.setItem('wineCellar', JSON.stringify(this.wines));
         } catch (e) {
             console.error('localStorage error:', e);
-            // If quota exceeded, try to save without images
             if (e.name === 'QuotaExceededError' || e.code === 22) {
-                this.showToast('Storage full! Saving without images...');
+                // Try without images
                 const winesWithoutImages = this.wines.map(w => ({ ...w, image: null }));
                 try {
                     localStorage.setItem('wineCellar', JSON.stringify(winesWithoutImages));
                 } catch (e2) {
-                    this.showToast('Could not save. Please delete some wines.');
+                    console.error('Could not save to localStorage');
                 }
             }
+        }
+    }
+
+    saveWines() {
+        // Save to localStorage first (immediate, offline support)
+        this.saveToLocalStorage();
+
+        // Then sync to Firebase if enabled
+        if (this.firebaseEnabled) {
+            this.saveWinesToFirebase();
         }
     }
 
@@ -986,8 +1183,17 @@ BELANGRIJK:
     }
 
     deleteCurrentWine() {
-        this.wines = this.wines.filter(w => w.id !== this.currentWineId);
-        this.saveWines();
+        const wineIdToDelete = this.currentWineId;
+        this.wines = this.wines.filter(w => w.id !== wineIdToDelete);
+
+        // Save locally
+        this.saveToLocalStorage();
+
+        // Delete from Firebase
+        if (this.firebaseEnabled) {
+            this.deleteWineFromFirebase(wineIdToDelete);
+        }
+
         this.renderWineList();
         this.updateStats();
 
