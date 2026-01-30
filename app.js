@@ -58,20 +58,24 @@ class WineCellar {
             }
 
             this.db = firebase.database();
-
-            // Sign in anonymously
             this.updateSyncStatus('connecting');
-            const userCredential = await firebase.auth().signInAnonymously();
-            this.userId = userCredential.user.uid;
 
-            console.log('Firebase connected, user ID:', this.userId);
-            this.firebaseEnabled = true;
-
-            // Set up real-time listener
-            this.setupFirebaseListener();
-
-            this.updateSyncStatus('synced');
-            this.showToast('Cloud sync enabled!');
+            // Listen for auth state changes
+            firebase.auth().onAuthStateChanged((user) => {
+                if (user) {
+                    this.userId = user.uid;
+                    this.firebaseEnabled = true;
+                    this.setupFirebaseListener();
+                    this.updateSyncStatus('synced');
+                    this.updateAuthUI(user);
+                    console.log('Signed in as:', user.displayName || 'Anonymous', '- UID:', user.uid);
+                } else {
+                    this.firebaseEnabled = false;
+                    this.userId = null;
+                    this.updateSyncStatus('disconnected');
+                    this.updateAuthUI(null);
+                }
+            });
 
         } catch (error) {
             console.error('Firebase initialization error:', error);
@@ -80,8 +84,67 @@ class WineCellar {
         }
     }
 
+    async signInWithGoogle() {
+        try {
+            this.updateSyncStatus('connecting');
+            const provider = new firebase.auth.GoogleAuthProvider();
+            const result = await firebase.auth().signInWithPopup(provider);
+            this.showToast(`Ingelogd als ${result.user.displayName}`);
+        } catch (error) {
+            console.error('Google sign-in error:', error);
+            if (error.code !== 'auth/popup-closed-by-user') {
+                this.showToast('Inloggen mislukt: ' + error.message);
+            }
+            this.updateSyncStatus('disconnected');
+        }
+    }
+
+    async signOut() {
+        try {
+            // Detach Firebase listener before signing out
+            if (this.db && this.userId) {
+                this.db.ref(`users/${this.userId}/wines`).off();
+            }
+            await firebase.auth().signOut();
+            this.firebaseEnabled = false;
+            this.userId = null;
+            this.wines = [];
+            this.loadWines(); // Reload from localStorage
+            this.renderWineList();
+            this.updateStats();
+            this.showToast('Uitgelogd');
+            this.updateSyncStatus('disconnected');
+        } catch (error) {
+            console.error('Sign out error:', error);
+        }
+    }
+
+    updateAuthUI(user) {
+        const userInfo = document.getElementById('userInfo');
+        const signInBtn = document.getElementById('googleSignInBtn');
+        const signOutBtn = document.getElementById('signOutBtn');
+
+        if (user && !user.isAnonymous) {
+            // User is signed in with Google
+            if (userInfo) {
+                userInfo.innerHTML = `✓ Ingelogd als <strong>${user.displayName || user.email}</strong>`;
+                userInfo.style.display = 'block';
+            }
+            if (signInBtn) signInBtn.style.display = 'none';
+            if (signOutBtn) signOutBtn.style.display = 'block';
+        } else {
+            // User is not signed in
+            if (userInfo) userInfo.style.display = 'none';
+            if (signInBtn) signInBtn.style.display = 'block';
+            if (signOutBtn) signOutBtn.style.display = 'none';
+        }
+    }
+
     setupFirebaseListener() {
         if (!this.db || !this.userId) return;
+
+        // Detach any existing listener first
+        this.db.ref(`users/${this.userId}/wines`).off();
 
         const winesRef = this.db.ref(`users/${this.userId}/wines`);
 
@@ -101,17 +164,11 @@ class WineCellar {
                 this.updateSearchVisibility();
 
                 console.log('Wines synced from cloud:', this.wines.length);
-            }
-        });
-
-        // Listen for auth state changes
-        firebase.auth().onAuthStateChanged((user) => {
-            if (user) {
-                this.userId = user.uid;
-                this.updateSyncStatus('synced');
             } else {
-                this.firebaseEnabled = false;
-                this.updateSyncStatus('disconnected');
+                // No data in Firebase yet - push local wines if any
+                if (this.wines.length > 0) {
+                    this.saveWinesToFirebase();
+                }
             }
         });
     }
@@ -489,6 +546,10 @@ class WineCellar {
                 this.type = 'text';
             }
         });
+
+        // Google Sign-In / Sign-Out buttons
+        document.getElementById('googleSignInBtn')?.addEventListener('click', () => this.signInWithGoogle());
+        document.getElementById('signOutBtn')?.addEventListener('click', () => this.signOut());
     }
 
     handleSaveGoogleKeys() {
