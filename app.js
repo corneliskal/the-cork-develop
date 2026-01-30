@@ -58,7 +58,12 @@ class WineCellar {
     }
 
     loadApiKey() {
+        // Eerst proberen uit localStorage, anders uit config.js
         this.apiKey = localStorage.getItem('openaiApiKey');
+        if (!this.apiKey && typeof CONFIG !== 'undefined' && CONFIG.OPENAI_API_KEY && !CONFIG.OPENAI_API_KEY.includes('YOUR')) {
+            this.apiKey = CONFIG.OPENAI_API_KEY;
+            localStorage.setItem('openaiApiKey', this.apiKey);
+        }
         this.updateApiKeyStatus();
     }
 
@@ -90,8 +95,20 @@ class WineCellar {
 
     // Google Custom Search API keys
     loadGoogleKeys() {
+        // Eerst proberen uit localStorage, anders uit config.js
         this.googleApiKey = localStorage.getItem('googleApiKey');
         this.googleSearchEngineId = localStorage.getItem('googleSearchEngineId');
+
+        // Als niet in localStorage, probeer config.js
+        if (!this.googleApiKey && typeof CONFIG !== 'undefined' && CONFIG.GOOGLE_API_KEY && !CONFIG.GOOGLE_API_KEY.includes('YOUR')) {
+            this.googleApiKey = CONFIG.GOOGLE_API_KEY;
+            localStorage.setItem('googleApiKey', this.googleApiKey);
+        }
+        if (!this.googleSearchEngineId && typeof CONFIG !== 'undefined' && CONFIG.GOOGLE_SEARCH_ENGINE_ID && !CONFIG.GOOGLE_SEARCH_ENGINE_ID.includes('YOUR')) {
+            this.googleSearchEngineId = CONFIG.GOOGLE_SEARCH_ENGINE_ID;
+            localStorage.setItem('googleSearchEngineId', this.googleSearchEngineId);
+        }
+
         this.updateGoogleKeyStatus();
     }
 
@@ -461,7 +478,7 @@ class WineCellar {
     }
 
     async searchGoogleImage(wineData) {
-        const searchQuery = `${wineData.producer} ${wineData.name} ${wineData.year || ''} wine bottle`;
+        const searchQuery = `${wineData.producer} ${wineData.name} bottle png`;
 
         console.log('🔍 Google Image Search Query:', searchQuery);
 
