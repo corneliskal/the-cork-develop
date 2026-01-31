@@ -540,7 +540,7 @@ class WineCellar {
         });
 
         // FAB button
-        document.getElementById('addWineBtn').addEventListener('click', () => this.openAddModal());
+        document.getElementById('addWineBtn')?.addEventListener('click', () => this.openAddModal());
 
         // Close buttons
         document.querySelectorAll('[data-close]').forEach(btn => {
@@ -560,32 +560,32 @@ class WineCellar {
         });
 
         // Image upload
-        document.getElementById('imagePreview').addEventListener('click', () => {
-            document.getElementById('galleryInput').click();
+        document.getElementById('imagePreview')?.addEventListener('click', () => {
+            document.getElementById('galleryInput')?.click();
         });
 
-        document.getElementById('cameraBtn').addEventListener('click', (e) => {
+        document.getElementById('cameraBtn')?.addEventListener('click', (e) => {
             e.stopPropagation();
-            document.getElementById('cameraInput').click();
+            document.getElementById('cameraInput')?.click();
         });
 
-        document.getElementById('galleryBtn').addEventListener('click', (e) => {
+        document.getElementById('galleryBtn')?.addEventListener('click', (e) => {
             e.stopPropagation();
-            document.getElementById('galleryInput').click();
+            document.getElementById('galleryInput')?.click();
         });
 
-        document.getElementById('cameraInput').addEventListener('change', (e) => this.handleImageUpload(e));
-        document.getElementById('galleryInput').addEventListener('change', (e) => this.handleImageUpload(e));
+        document.getElementById('cameraInput')?.addEventListener('change', (e) => this.handleImageUpload(e));
+        document.getElementById('galleryInput')?.addEventListener('change', (e) => this.handleImageUpload(e));
 
         // Form submission
-        document.getElementById('wineForm').addEventListener('submit', (e) => this.handleFormSubmit(e));
+        document.getElementById('wineForm')?.addEventListener('submit', (e) => this.handleFormSubmit(e));
 
         // Characteristic sliders
         ['boldness', 'tannins', 'acidity'].forEach(id => {
             const slider = document.getElementById(id);
             const value = document.getElementById(`${id}Value`);
-            slider.addEventListener('input', () => {
-                value.textContent = slider.value;
+            slider?.addEventListener('input', () => {
+                if (value) value.textContent = slider.value;
             });
         });
 
@@ -602,15 +602,12 @@ class WineCellar {
         });
 
         // Detail modal quantity controls
-        document.getElementById('detailIncrease').addEventListener('click', () => this.updateDetailQuantity(1));
-        document.getElementById('detailDecrease').addEventListener('click', () => this.updateDetailQuantity(-1));
+        document.getElementById('detailIncrease')?.addEventListener('click', () => this.updateDetailQuantity(1));
+        document.getElementById('detailDecrease')?.addEventListener('click', () => this.updateDetailQuantity(-1));
 
         // Detail modal actions
-        document.getElementById('editWineBtn').addEventListener('click', () => this.editCurrentWine());
-        document.getElementById('deleteWineBtn').addEventListener('click', () => this.openDeleteModal());
-
-        // Delete confirmation
-        document.getElementById('confirmDelete').addEventListener('click', () => this.deleteCurrentWine());
+        document.getElementById('editWineBtn')?.addEventListener('click', () => this.editCurrentWine());
+        document.getElementById('deleteWineBtn')?.addEventListener('click', () => this.openDeleteModal());
 
         // Allow showing/hiding API key
         document.getElementById('apiKeyInput')?.addEventListener('focus', function() {
