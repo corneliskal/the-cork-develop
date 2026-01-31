@@ -34,16 +34,11 @@ class WineCellar {
     }
 
     async init() {
-        this.loadWines(); // Load from localStorage first (offline support)
-        this.loadArchive(); // Load archive from localStorage
         this.loadApiKey();
         this.loadGoogleKeys();
         this.bindEvents();
-        this.renderWineList();
-        this.updateStats();
-        this.updateSearchVisibility();
 
-        // Initialize Firebase if configured
+        // Initialize Firebase - user must be logged in to use app
         await this.initFirebase();
     }
 
@@ -55,8 +50,9 @@ class WineCellar {
         // Check if Firebase config is available and valid
         if (typeof CONFIG === 'undefined' || !CONFIG.FIREBASE ||
             !CONFIG.FIREBASE.apiKey || CONFIG.FIREBASE.apiKey.includes('YOUR')) {
-            console.log('Firebase not configured - using local storage only');
+            console.log('Firebase not configured - app requires login');
             this.updateSyncStatus('local');
+            this.showAppContent(false);
             return;
         }
 
@@ -77,12 +73,18 @@ class WineCellar {
                     this.setupFirebaseListener();
                     this.updateSyncStatus('synced');
                     this.updateAuthUI(user);
+                    this.showAppContent(true);
                     console.log('Signed in as:', user.displayName || 'Anonymous', '- UID:', user.uid);
                 } else {
                     this.firebaseEnabled = false;
                     this.userId = null;
+                    this.wines = [];
+                    this.archive = [];
                     this.updateSyncStatus('disconnected');
                     this.updateAuthUI(null);
+                    this.showAppContent(false);
+                    this.renderWineList();
+                    this.updateStats();
                 }
             });
 
@@ -120,14 +122,33 @@ class WineCellar {
             this.userId = null;
             this.wines = [];
             this.archive = [];
-            this.loadWines(); // Reload from localStorage
-            this.loadArchive(); // Reload archive from localStorage
             this.renderWineList();
             this.updateStats();
             this.showToast('Uitgelogd');
             this.updateSyncStatus('disconnected');
+            this.showAppContent(false);
         } catch (error) {
             console.error('Sign out error:', error);
+        }
+    }
+
+    showAppContent(isLoggedIn) {
+        const loginScreen = document.getElementById('loginScreen');
+        const mainContent = document.querySelector('.main-content');
+        const fab = document.getElementById('addWineBtn');
+        const searchContainer = document.getElementById('searchContainer');
+
+        if (isLoggedIn) {
+            // Show app content
+            if (loginScreen) loginScreen.classList.add('hidden');
+            if (mainContent) mainContent.classList.remove('hidden');
+            if (fab) fab.classList.remove('hidden');
+        } else {
+            // Show login screen
+            if (loginScreen) loginScreen.classList.remove('hidden');
+            if (mainContent) mainContent.classList.add('hidden');
+            if (fab) fab.classList.add('hidden');
+            if (searchContainer) searchContainer.classList.add('hidden');
         }
     }
 
@@ -174,14 +195,11 @@ class WineCellar {
 
             console.log('  📊 Firebase data received:', firebaseWines.length, 'wines');
 
-            // Firebase is the source of truth - replace local wines entirely
+            // Firebase is the source of truth
             this.wines = firebaseWines;
 
             // Sort by addedAt date (newest first)
             this.wines.sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt));
-
-            // Save to localStorage as backup for offline use
-            this.saveToLocalStorage();
 
             this.renderWineList();
             this.updateStats();
@@ -202,7 +220,6 @@ class WineCellar {
 
             this.archive = firebaseArchive;
             this.archive.sort((a, b) => new Date(b.archivedAt) - new Date(a.archivedAt));
-            this.saveArchiveToLocalStorage();
         });
     }
 
@@ -305,87 +322,21 @@ class WineCellar {
     }
 
     // ============================
-    // Local Storage
+    // Wine Storage (Firebase only)
     // ============================
 
-    loadWines() {
-        const stored = localStorage.getItem('wineCellar');
-        if (stored) {
-            this.wines = JSON.parse(stored);
-        }
-    }
-
-    saveToLocalStorage() {
-        try {
-            localStorage.setItem('wineCellar', JSON.stringify(this.wines));
-        } catch (e) {
-            console.error('localStorage error:', e);
-            if (e.name === 'QuotaExceededError' || e.code === 22) {
-                // Try without images
-                const winesWithoutImages = this.wines.map(w => ({ ...w, image: null }));
-                try {
-                    localStorage.setItem('wineCellar', JSON.stringify(winesWithoutImages));
-                } catch (e2) {
-                    console.error('Could not save to localStorage');
-                }
-            }
-        }
-    }
-
     saveWines() {
-        // Save to localStorage first (immediate, offline support)
-        this.saveToLocalStorage();
-
-        // Then sync to Firebase if enabled
         if (this.firebaseEnabled) {
             this.saveWinesToFirebase();
         }
     }
 
     // ============================
-    // Archive Storage
+    // Archive Storage (Firebase only)
     // ============================
-
-    loadArchive() {
-        const stored = localStorage.getItem('wineArchive');
-        if (stored) {
-            this.archive = JSON.parse(stored);
-        }
-    }
-
-    saveArchiveToLocalStorage() {
-        try {
-            localStorage.setItem('wineArchive', JSON.stringify(this.archive));
-        } catch (e) {
-            console.error('localStorage archive error:', e);
-            // Try without images
-            const archiveWithoutImages = this.archive.map(w => ({ ...w, image: null }));
-            try {
-                localStorage.setItem('wineArchive', JSON.stringify(archiveWithoutImages));
-            } catch (e2) {
-                console.error('Could not save archive to localStorage');
-            }
-        }
-    }
-
-    async saveArchiveToFirebase() {
-        if (!this.firebaseEnabled || !this.db || !this.userId) return;
-
-        try {
-            const archiveObject = {};
-            this.archive.forEach(item => {
-                archiveObject[item.id] = item;
-            });
-            await this.db.ref(`users/${this.userId}/archive`).set(archiveObject);
-            console.log('Archive saved to cloud');
-        } catch (error) {
-            console.error('Error saving archive to Firebase:', error);
-        }
-    }
 
     async pushToArchive(archivedWine) {
         this.archive.unshift(archivedWine);
-        this.saveArchiveToLocalStorage();
 
         if (this.firebaseEnabled && this.db && this.userId) {
             try {
@@ -398,7 +349,6 @@ class WineCellar {
 
     async deleteFromArchive(archiveId) {
         this.archive = this.archive.filter(w => w.id !== archiveId);
-        this.saveArchiveToLocalStorage();
 
         if (this.firebaseEnabled && this.db && this.userId) {
             try {
@@ -644,6 +594,7 @@ class WineCellar {
 
         // Google Sign-In / Sign-Out buttons
         document.getElementById('googleSignInBtn')?.addEventListener('click', () => this.signInWithGoogle());
+        document.getElementById('loginGoogleBtn')?.addEventListener('click', () => this.signInWithGoogle());
         document.getElementById('signOutBtn')?.addEventListener('click', () => this.signOut());
 
         // Archive button
