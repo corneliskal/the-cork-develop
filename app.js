@@ -708,6 +708,7 @@ class WineCellar {
 
     async searchGoogleImage(wineData) {
         // Use Cloud Function for Google Image Search (keys are stored securely on server)
+        // The Cloud Function fetches the image and returns it as base64 to avoid CORS issues
         if (!CONFIG.FUNCTIONS?.searchWineImage) {
             console.log('Google Image Search not configured');
             return null;
@@ -739,20 +740,20 @@ class WineCellar {
 
             const result = await response.json();
 
-            if (result.imageUrl) {
-                console.log('✅ Found image:', result.imageUrl);
-                // Try to load the image
-                try {
-                    const loaded = await this.loadExternalImage(result.imageUrl);
-                    if (loaded) {
-                        return loaded;
-                    }
-                } catch (e) {
-                    console.log('❌ Failed to load image:', e.message);
+            // The Cloud Function now returns base64 encoded image directly
+            if (result.imageBase64) {
+                console.log('✅ Found image (base64)');
+                // Update the preview with the base64 image
+                this.currentImage = result.imageBase64;
+                const preview = document.getElementById('previewImg');
+                if (preview) {
+                    preview.src = result.imageBase64;
+                    document.getElementById('imagePreview')?.classList.add('has-image');
                 }
+                return result.imageBase64;
             }
 
-            console.log('⚠️ No image found or failed to load');
+            console.log('⚠️ No image found:', result.message);
             return null;
         } catch (error) {
             console.error('❌ Google Image Search error:', error);
