@@ -739,6 +739,7 @@ class WineCellar {
             }
 
             const result = await response.json();
+            console.log('📦 searchWineImage response:', JSON.stringify(result).substring(0, 200));
 
             // The Cloud Function now returns base64 encoded image directly
             if (result.imageBase64) {
